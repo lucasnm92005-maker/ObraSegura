@@ -1,0 +1,10 @@
+TITULO = "ObraSegura: tarifa y seguimiento de pólizas de cumplimiento"
+CLIENTE = "Cimiento Seguros"
+DESCRIPCION = "Decide si cada póliza va con tarifa estándar, recargo o recargo con garantías, y qué contratos en ejecución revisar primero"
+UNIDAD = "un contrato"
+PIE = ("Fuentes: SECOP II (datos.gov.co) y RUES, datos abiertos. Cimiento Seguros es una marca ficticia creada para el curso "
+       "Minería de Datos (Uniandes). La probabilidad es una estimación de riesgo, no una prueba de que una entidad o un "
+       "contratista haya hecho algo mal. Por la Ley 1581 de 2012, la aplicación no muestra nombres ni identificaciones de "
+       "contratistas; solo el identificador del contrato. Modelo entrenado con contratos firmados en 2020–2023.")
+LOGO = "assets/logo.png"
+INTERFAZ = "streamlit"
