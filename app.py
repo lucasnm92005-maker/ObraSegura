@@ -4,6 +4,7 @@ Usa solo las funciones de la zona fija (core/). El pie de página (config["pie"]
 Para verla en su computador:   streamlit run app.py"""
 import re
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -202,7 +203,7 @@ def radar():
     tipos = f2.multiselect("Tipo de contrato", sorted(rad["tipo_de_contrato"].dropna().unique()), placeholder="Todos")
     entidades = f3.multiselect("Entidad", sorted(rad["nombre_entidad"].dropna().unique()), placeholder="Todas")
     decisiones = f4.multiselect("Recomendación", meta["decisiones"], placeholder="Todas")
-    solo_top = st.toggle("Solo los 1.000 prioritarios", value=True)
+    solo_top = st.toggle("Mostrar solo los 1.000 prioritarios (⭐)", value=False)
     vista = rad
     if deptos:
         vista = vista[vista["departamento"].isin(deptos)]
@@ -215,6 +216,14 @@ def radar():
     if solo_top:
         vista = vista[vista["prioridad"] <= 1000]
     vista = vista.sort_values("prioridad")
+    if vista.empty:
+        if solo_top:
+            st.warning("Ninguno de los 1.000 contratos prioritarios cumple estos filtros. Apague **Mostrar solo los 1.000 "
+                       "prioritarios** para ver todos los contratos en ejecución que sí los cumplen.")
+        else:
+            st.warning("Ningún contrato en ejecución cumple estos filtros. Quite alguno para ampliar la búsqueda.")
+        st.info(AVISO, icon="ℹ️")
+        return
 
     k1, k2, k3 = st.columns(3)
     k1.metric("Contratos en la vista", miles(len(vista)))
@@ -250,17 +259,27 @@ def valor():
     c1, c2, c3 = st.columns(3)
     c1.metric("Costo con el modelo", miles(m["costo_modelo"]), help="Unidades de costo por cada 1.000 contratos.")
     c2.metric("Costo con la regla simple", miles(m["costo_regla"]))
-    c3.metric("Ahorro del modelo", miles(ahorro), delta=f"−{ahorro / m['costo_regla']:.0%} frente a la regla".replace("%", " %"),
-              delta_color="inverse")
+    c3.metric("Ahorro del modelo frente a la regla", miles(ahorro),
+              delta=f"{ahorro / m['costo_regla']:.0%} menos costo".replace("%", " %"), delta_color="normal")
     if "intervalo_diferencia" in m:
         a, b = m["intervalo_diferencia"]
         st.caption(f"Con 95 % de confianza, el ahorro está entre {miles(a)} y {miles(b)} unidades por cada 1.000 contratos: "
                    "el intervalo no toca el cero, así que la ventaja no es suerte.")
-    comp = pd.DataFrame({"Costo por 1.000 contratos": {
-        "Modelo": m["costo_modelo"], "Regla simple": m["costo_regla"],
-        "Recargo a todos": m.get("Costo de cobrar recargo a todos"),
-        "Tarifa estándar a todos": m.get("Costo de tarifa estándar a todos")}}).dropna()
-    st.bar_chart(comp, horizontal=True, height=230)
+    comp = pd.DataFrame({"Decisión": ["Modelo", "Recargo a todos", "Regla simple", "Tarifa estándar a todos"],
+                         "Costo": [m["costo_modelo"], m.get("Costo de cobrar recargo a todos"), m["costo_regla"],
+                                   m.get("Costo de tarifa estándar a todos")]}).dropna()
+    comp["Grupo"] = comp["Decisión"].map(lambda d: "Modelo" if d == "Modelo" else "Sin modelo")
+    comp["Etiqueta"] = comp["Costo"].map(miles)
+    base = alt.Chart(comp).encode(
+        y=alt.Y("Decisión:N", sort=list(comp["Decisión"]), title=None, axis=alt.Axis(labelLimit=260, labelFontSize=13)),
+        x=alt.X("Costo:Q", title="Costo de los errores por cada 1.000 contratos (menos es mejor)",
+                axis=alt.Axis(format="d")))
+    barras = base.mark_bar(cornerRadiusEnd=4, height=34).encode(
+        color=alt.Color("Grupo:N", scale=alt.Scale(domain=["Modelo", "Sin modelo"], range=["#2E7D32", "#9E9E9E"]),
+                        legend=None),
+        tooltip=[alt.Tooltip("Decisión:N"), alt.Tooltip("Etiqueta:N", title="Costo")])
+    textos = base.mark_text(align="left", dx=6, fontSize=13, fontWeight="bold").encode(text="Etiqueta:N")
+    st.altair_chart((barras + textos).properties(height=220), width="stretch")
     st.markdown(f"""
 **Cómo leerlo.** Cada error le cuesta a Cimiento: **5 unidades** si cobra tarifa estándar a un contrato que después se atrasa
 (más seguimiento, reclamaciones y provisiones) y **1 unidad** si cobra recargo a uno que no se atrasa (el cliente puede irse
